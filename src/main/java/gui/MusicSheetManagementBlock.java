@@ -6,12 +6,19 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.swing.JButton;
 import javax.swing.JPanel;
 
+import dao.MusicDao;
 import dao.SheetDao;
+import db_model.Music;
 import db_model.Sheet;
+import model.MusicSheet;
 
 public class MusicSheetManagementBlock extends JPanel {
 
@@ -34,10 +41,13 @@ public class MusicSheetManagementBlock extends JPanel {
 		deleteMusicSheetButton.addMouseListener(new MouseAdapter() {
 			public void mouseClicked(MouseEvent e) {
 				Sheet sheet = app.getLocalSheet().curSheet;
+				Sheet preSheet = app.getLocalSheet().preSheet;
 				SheetDao dao = new SheetDao();
 				if (sheet != null) {
 					dao.delete(sheet.getId());
 					app.refreshLocalSheet();
+					MusicSheet mSheet = createMusicSheet(preSheet);
+					app.refreshDisplaySheet(mSheet);
 					System.out.println("删除歌单 " + sheet.getId());
 				}
 
@@ -46,6 +56,28 @@ public class MusicSheetManagementBlock extends JPanel {
 		});
 		this.add(createMusicSheetButton);
 		this.add(deleteMusicSheetButton);
+	}
+
+	// 通过 sheet 创建 musicSheet
+	MusicSheet createMusicSheet(Sheet s) {
+		if (s == null)
+			return null;
+		MusicSheet sheet = new MusicSheet();
+		MusicDao musicDao = new MusicDao();
+		sheet.setName(s.getName());
+		sheet.setCreator(s.getCreator());
+		sheet.setPicture(s.getPicPath());
+		sheet.setDateCreated(s.getDateCreated());
+
+		List<Music> ms = new ArrayList<Music>();
+		ms = musicDao.findBySheetId(s.getId());
+		Map<String, String> mum = new HashMap<String, String>();
+		for (Music m : ms) {
+			mum.put(m.getMd5(), m.getName());
+		}
+		sheet.setMusicItems(mum);
+
+		return sheet;
 	}
 
 }

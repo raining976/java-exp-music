@@ -54,6 +54,7 @@ public class SharedMusicSheetBlock extends JPanel {
 			public void mouseClicked(MouseEvent e) {
 				int count = sharedMusicSheetTable.getSelectedRow();
 				MusicSheet musicSheet = musicSheetData.get(count);
+				app.isLocal = false;
 				app.refreshDisplaySheet(musicSheet);
 
 			}

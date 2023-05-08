@@ -23,6 +23,7 @@ public class MusicPlayerGUI extends JFrame {
 	private LocalMusicSheetBlock localSheet;
 	private MusicPlayerBlock musicPlayer;
 	private MP3Player mp3Player;
+	boolean isLocal = false;
 
 	public MusicPlayerGUI(String title) {
 
