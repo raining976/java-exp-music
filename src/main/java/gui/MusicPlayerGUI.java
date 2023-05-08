@@ -20,6 +20,7 @@ public class MusicPlayerGUI extends JFrame {
 	private static final long serialVersionUID = 1L;
 
 	private MusicSheetDisplayBlock displaySheet;
+	private LocalMusicSheetBlock localSheet;
 	private MusicPlayerBlock musicPlayer;
 	private MP3Player mp3Player;
 
@@ -41,8 +42,9 @@ public class MusicPlayerGUI extends JFrame {
 		container.add("West", westPanel);
 
 		westPanel.add(new SharedMusicSheetBlock(this));
-		westPanel.add(new LocalMusicSheetBlock());
-		westPanel.add(new MusicSheetManagementBlock());
+		localSheet = new LocalMusicSheetBlock(this);
+		westPanel.add(localSheet);
+		westPanel.add(new MusicSheetManagementBlock(this));
 
 		/* CENTER ************************************/
 		JPanel centerPanel = new JPanel();
@@ -52,7 +54,7 @@ public class MusicPlayerGUI extends JFrame {
 
 		MusicSheet firstSheet = new MusicOperationClient().queryAllMusicSheets().get(0);
 		// 添加歌单展示区域
-		displaySheet = new MusicSheetDisplayBlock(firstSheet);
+		displaySheet = new MusicSheetDisplayBlock(firstSheet, this);
 		centerPanel.add(displaySheet);
 
 		// 歌曲列表部分
@@ -69,14 +71,26 @@ public class MusicPlayerGUI extends JFrame {
 		}
 	}
 
+	public LocalMusicSheetBlock getLocalSheet() {
+		return localSheet;
+	}
+
 	// 刷新歌单展示区
 	public void refreshDisplaySheet(MusicSheet musicSheet) {
 		displaySheet.removeAll();
-		displaySheet.add(new MusicSheetDisplayBlock(musicSheet));
+		displaySheet.add(new MusicSheetDisplayBlock(musicSheet, this));
 		displaySheet.revalidate();
 
 		musicPlayer.removeAll();
 		musicPlayer.add(new MusicPlayerBlock(musicSheet));
 		musicPlayer.revalidate();
+	}
+
+	public void refreshLocalSheet() {
+		localSheet.removeAll();
+		LocalMusicSheetBlock localSheetTmp = new LocalMusicSheetBlock(this);
+		localSheet.add(localSheetTmp);
+		localSheet.revalidate();
+		localSheet = localSheetTmp;
 	}
 }

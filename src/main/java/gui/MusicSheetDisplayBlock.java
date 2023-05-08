@@ -4,17 +4,28 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Image;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Map;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.IOUtils;
+
+import dao.MusicDao;
+import db_model.Music;
 import model.MusicSheet;
 import musicclient.MusicOperationClient;
 
@@ -24,18 +35,26 @@ public class MusicSheetDisplayBlock extends JPanel {
 	private String picPath = "/Users/xiaodong/Music/guns and roses/fig-guns and roses.jpg";
 	private final String picBasicUrl = "D:\\desktop\\oucMusicStatic\\musicCover\\";
 	private final String musicBasicUrl = "D:\\desktop\\oucMusicStatic\\musicSource\\";
+	private boolean isLocal = false;
 
-	public MusicSheetDisplayBlock(MusicSheet musicSheet) {
+	public MusicSheetDisplayBlock(MusicSheet musicSheet, MusicPlayerGUI app) {
 		this.setPreferredSize(new Dimension(550, 200));
 		this.setLayout(new FlowLayout(FlowLayout.LEFT));
 
 		MusicOperationClient moc = new MusicOperationClient();
 		// 下载封面
-		picPath = picBasicUrl + musicSheet.getPicture();
-		File picFile = new File(picPath);
-		if (!picFile.exists()) {
-			moc.downloadMusicSheetPicture(musicSheet.getUuid(), picBasicUrl);
-			System.out.println("封面不存在,正在下载...");
+		String pic_path = musicSheet.getPicture();
+		int rs = pic_path.indexOf('\\');
+		if (rs == -1) {
+			picPath = picBasicUrl + pic_path;
+			File picFile = new File(picPath);
+			if (!picFile.exists()) {
+				moc.downloadMusicSheetPicture(musicSheet.getUuid(), picBasicUrl);
+				System.out.println("封面不存在,正在下载...");
+			}
+		} else {
+			picPath = pic_path;
+			isLocal = true;
 		}
 
 		ImageIcon musicSheetPicture = new ImageIcon(picPath);
@@ -80,9 +99,49 @@ public class MusicSheetDisplayBlock extends JPanel {
 			}
 
 		});
+		JButton addMusic = new JButton("添加歌曲");
+		// 为创建歌单绑定事件
+		MusicDao mDao = new MusicDao();
+		addMusic.addActionListener(new ActionListener() {
+
+			public void actionPerformed(ActionEvent e) {
+//				AddMusicGui addMusic = new AddMusicGui(app);
+//				addMusic.setVisible(true);
+				JFileChooser fileChooser = new JFileChooser();
+				int res = fileChooser.showOpenDialog(app);
+				if (res == JFileChooser.APPROVE_OPTION) {
+					File selectedFile = fileChooser.getSelectedFile();
+					String filePath = selectedFile.getAbsolutePath();
+					int sheetId = app.getLocalSheet().curSheet.getId();
+					String name = filePath.substring(filePath.lastIndexOf("\\") + 1, filePath.indexOf('.'));
+					FileInputStream fis;
+					String Md5 = null;
+					try {
+						fis = new FileInputStream(filePath);
+						Md5 = DigestUtils.md5Hex(IOUtils.toByteArray(fis));
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+					Music music = new Music();
+					music.setName(name);
+					music.setSheetId(sheetId);
+					music.setFilePath(filePath);
+					music.setMd5(Md5);
+					mDao.insert(music);
+					Map<String, String> mum = musicSheet.getMusicItems();
+					mum.put(Md5, name);
+					musicSheet.setMusicItems(mum);
+					app.refreshDisplaySheet(musicSheet);
+
+				}
+			}
+		});
 
 		musicSheetButtonPanel.add(playAllMusicButton);
 		musicSheetButtonPanel.add(downloadAllMusicButton);
+		if (this.isLocal) {
+			musicSheetButtonPanel.add(addMusic);
+		}
 
 		musicSheetInfoPanel.add(Box.createVerticalStrut(20));
 		musicSheetInfoPanel.add(musicSheetTitleLabel);
