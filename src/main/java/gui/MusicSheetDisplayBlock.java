@@ -43,9 +43,9 @@ public class MusicSheetDisplayBlock extends JPanel {
 
 		MusicOperationClient moc = new MusicOperationClient();
 		// 下载封面
+		this.isLocal = app.isLocal;
 		String pic_path = musicSheet.getPicture();
-		int rs = pic_path.indexOf('\\');
-		if (rs == -1) {
+		if (!isLocal) {
 			picPath = picBasicUrl + pic_path;
 			File picFile = new File(picPath);
 			if (!picFile.exists()) {
@@ -54,7 +54,6 @@ public class MusicSheetDisplayBlock extends JPanel {
 			}
 		} else {
 			picPath = pic_path;
-			isLocal = true;
 		}
 
 		ImageIcon musicSheetPicture = new ImageIcon(picPath);
@@ -138,11 +137,10 @@ public class MusicSheetDisplayBlock extends JPanel {
 		});
 
 		musicSheetButtonPanel.add(playAllMusicButton);
-		musicSheetButtonPanel.add(downloadAllMusicButton);
-		if (this.isLocal) {
+		if (!this.isLocal)
+			musicSheetButtonPanel.add(downloadAllMusicButton);
+		if (this.isLocal)
 			musicSheetButtonPanel.add(addMusic);
-		}
-
 		musicSheetInfoPanel.add(Box.createVerticalStrut(20));
 		musicSheetInfoPanel.add(musicSheetTitleLabel);
 		musicSheetInfoPanel.add(Box.createVerticalStrut(10));

@@ -32,6 +32,7 @@ public class LocalMusicSheetBlock extends JPanel {
 	String[] localMusicColumnNames = { "歌 单" };
 	List<Sheet> sheets = new ArrayList<Sheet>();
 	Sheet curSheet = null;
+	Sheet preSheet = null;
 
 	public LocalMusicSheetBlock(MusicPlayerGUI app) {
 		this.setPreferredSize(new Dimension(250, 400));
@@ -46,7 +47,9 @@ public class LocalMusicSheetBlock extends JPanel {
 			public void mouseClicked(MouseEvent e) {
 				int count = localMusicSheetTable.getSelectedRow();
 				curSheet = sheets.get(count);
+				preSheet = count == 0 ? null : sheets.get(count - 1);
 				MusicSheet sheet = createMusicSheet(curSheet);
+				app.isLocal = true;
 				app.refreshDisplaySheet(sheet);
 				System.out.println(curSheet.getId());
 			}
