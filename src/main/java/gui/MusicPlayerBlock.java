@@ -5,6 +5,8 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
+import java.util.Map.Entry;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -24,10 +26,15 @@ public class MusicPlayerBlock extends JPanel {
 			{ "November rain.mp3", "Guns and Roses", "10 min", "", "" } };
 	private String[] musicColumnNames = { "曲名", "歌手", "时长" };
 
-	private int curIndex; // 当前播放歌曲的索引
-	private String curId; // 当前播放歌曲的id
+	int curIndex; // 当前播放歌曲的索引
+	private String workPath;
+	private String songPath = "\\songs\\";
+	private boolean isDownloaded = false; // 歌曲是否下载
+	private JButton playMusicButton;
+	private MyTable musicTable;
 
-	public MusicPlayerBlock(MusicSheet ms) {
+	public MusicPlayerBlock(MusicSheet ms, MusicPlayerGUI app) {
+		workPath = System.getProperty("user.dir");
 		this.setPreferredSize(new Dimension(550, 300));
 		BoxLayout layout = new BoxLayout(this, BoxLayout.Y_AXIS);
 		this.setLayout(layout);
@@ -35,24 +42,46 @@ public class MusicPlayerBlock extends JPanel {
 		// 设置歌曲列表数据
 		Object[][] Data = new Object[ms.getMusicItems().size()][3];
 		int i = 0;
+
+		String fileName1 = null;
+		for (Entry<String, String> entry : ms.getMusicItems().entrySet()) {
+			fileName1 = entry.getValue();
+			if (fileName1 != null) {
+				break;
+			}
+		}
+		if (new File(workPath + songPath + fileName1).exists()) {
+			isDownloaded = true;
+		}
+
 		for (String value : ms.getMusicItems().values()) {
+//			if (isDownloaded) {
+//				System.out.println("歌曲已经下载");
+//				String path = workPath + songPath + value;
+//				List song = MP3Util.getMp3Info(path);
+//
+//				Data[i][0] = song.get(0);
+//				Data[i][1] = song.get(1);
+//				Data[i][2] = song.get(2);
+//			} 
 			Data[i][0] = value;
 			Data[i][1] = Data[i][2] = "";
+
 			i++;
 		}
 		this.musicData = Data;
 
-		MyTable musicTable = new MyTable(musicData, musicColumnNames);
+		musicTable = new MyTable(musicData, musicColumnNames);
 		// 设置双击播放歌曲
-		Object[] keys = ms.getMusicItems().keySet().toArray();
+
 		musicTable.addMouseListener(new MouseAdapter() {
 			public void mouseClicked(MouseEvent e) {
 				if (e.getClickCount() == 2) {
 					curIndex = musicTable.getSelectedRow();
-					curId = keys[curIndex].toString();
-					System.out.println("第" + curIndex + "行" + " id: " + curId);
-					// TODO 双击播放音乐
-
+					// 更新当前播放的歌曲和歌单信息
+					app.curPlaySheet = ms;
+					app.curPlayIndex = curIndex;
+					app.playMusic();
 				}
 
 			}
@@ -71,13 +100,53 @@ public class MusicPlayerBlock extends JPanel {
 		musicPlayerPanel.setLayout(new FlowLayout());
 		musicPlayerPanel.setBackground(Color.GRAY);
 		JButton previousMusicButton = new JButton("上一首");
-		JButton playMusicButton = new JButton("播放");
-		JButton nextMusicButtonButton = new JButton("下一首");
+		previousMusicButton.addMouseListener(new MouseAdapter() {
+			public void mouseClicked(MouseEvent e) {
+				if (app.curPlayIndex != -1)
+					app.playPre();
+			}
 
+		});
+		playMusicButton = new JButton("播放");
+		playMusicButton.addMouseListener(new MouseAdapter() {
+			public void mouseClicked(MouseEvent e) {
+				if (app.curPlayIndex != -1) {
+					String text = playMusicButton.getText();
+					if (text == "播放") {
+						// TODO: 播放
+						app.mp3Player.play();
+					} else {
+						// TODO: 暂停
+						app.mp3Player.pause();
+					}
+					playMusicButton.setText(text == "播放" ? "暂停" : "播放");
+				}
+
+			}
+
+		});
+		JButton nextMusicButtonButton = new JButton("下一首");
+		nextMusicButtonButton.addMouseListener(new MouseAdapter() {
+			public void mouseClicked(MouseEvent e) {
+				if (app.curPlayIndex != -1)
+					app.playNext();
+			}
+
+		});
 		musicPlayerPanel.add(previousMusicButton);
 		musicPlayerPanel.add(playMusicButton);
 		musicPlayerPanel.add(nextMusicButtonButton);
 
 		this.add(musicPlayerPanel);
+	}
+
+	public void setPauseText() {
+		playMusicButton.setText("暂停");
+	}
+
+	public void setTableSelectedRow(int index) {
+		musicTable.clearSelection();
+		musicTable.setRowSelectionInterval(index, index);
+
 	}
 }

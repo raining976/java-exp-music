@@ -24,14 +24,16 @@ public class MusicDao implements BaseDao<Music> {
 	@Override
 	public void insert(Music music) {
 		// TODO Auto-generated method stub
+		if (this.findByMd5(music.getMd5()) == null)
+			return;
 		Connection conn = null;
 		PreparedStatement ps = null;
-		String sql = "INSERT INTO music (NAME, sheet_id, MD5, file_path) VALUES (?, ?, ?, ?)";
+		String sql = "INSERT INTO music (name, sheet_id, MD5, file_path) VALUES (?, ?, ?, ?)";
 		try {
 			conn = SqliteUtil.getConnection();
 			ps = conn.prepareStatement(sql);
 			ps.setString(1, music.getName());
-			ps.setLong(2, music.getSheetId());
+			ps.setInt(2, music.getSheetId());
 			ps.setString(3, music.getMd5());
 			ps.setString(4, music.getFilePath());
 			ps.executeUpdate();
@@ -137,6 +139,37 @@ public class MusicDao implements BaseDao<Music> {
 			conn = SqliteUtil.getConnection();
 			ps = conn.prepareStatement(sql);
 			ps.setInt(1, id);
+			rs = ps.executeQuery();
+			if (rs.next()) {
+				music = new Music();
+				music.setId(rs.getInt(1));
+				music.setName(rs.getString(2));
+				music.setSheetId(rs.getInt(3));
+				music.setMd5(rs.getString(4));
+				music.setFilePath(rs.getString(5));
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} finally {
+			SqliteUtil.close(null, ps, conn);
+		}
+		return music;
+	}
+
+	/**
+	 * 根据MD5查询歌曲信息
+	 * 
+	 */
+	public Music findByMd5(String md5) {
+		Connection conn = null;
+		PreparedStatement ps = null;
+		ResultSet rs = null;
+		Music music = null;
+		String sql = "SELECT ID, NAME, sheet_id, MD5, file_path FROM music WHERE MD5=?";
+		try {
+			conn = SqliteUtil.getConnection();
+			ps = conn.prepareStatement(sql);
+			ps.setString(1, md5);
 			rs = ps.executeQuery();
 			if (rs.next()) {
 				music = new Music();

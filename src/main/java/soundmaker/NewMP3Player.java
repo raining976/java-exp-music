@@ -4,6 +4,7 @@ import javazoom.jl.player.Player;
 
 class PlayThread extends Thread {
 	Player player = null;
+	boolean isPause = false;
 
 	public PlayThread(Player player) {
 		this.player = player;
@@ -23,12 +24,32 @@ class PlayThread extends Thread {
 				System.out.println(e);
 			}
 		}
+		while (true) {
+			try {
+				Thread.sleep(1000);
+				if (isPause) {
+
+					synchronized (player) {
+						try {
+							player.wait();
+							player.notify();
+						} catch (Exception e) {
+							System.out.println(e);
+						}
+					}
+				}
+			} catch (InterruptedException e1) {
+				// TODO 自动生成的 catch 块
+				e1.printStackTrace();
+			}
+		}
 
 	}
 }
 
 class ControlThread extends Thread {
 	Player player = null;
+	boolean isPause;
 
 	public ControlThread(Player player) {
 		this.player = player;
@@ -36,10 +57,9 @@ class ControlThread extends Thread {
 
 	@Override
 	public void run() {
-		for (int i = 0; i < 100; i++) {
+		for (int i = 0; i < 100000; i++) {
 			try {
-				Thread.sleep(1000);
-				if (i == 3) {
+				if (i == 0) {
 					synchronized (player) {
 						try {
 							player.notify();
@@ -48,15 +68,19 @@ class ControlThread extends Thread {
 						}
 					}
 				}
+				Thread.sleep(1000);
 
-				if (i == 6) {
-					synchronized (player) {
-						try {
-							player.wait();
-						} catch (Exception e) {
-							System.out.println(e);
-						}
-					}
+//				if (i == 6) {
+//					synchronized (player) {
+//						try {
+//							player.wait();
+//						} catch (Exception e) {
+//							System.out.println(e);
+//						}
+//					}
+//				}
+				if (this.isPause == false) {
+					player.notify();
 				}
 
 			} catch (InterruptedException e1) {
@@ -69,10 +93,18 @@ class ControlThread extends Thread {
 }
 
 public class NewMP3Player {
-	private Thread playThread = null;
-	private Thread controlThread = null;
+	private PlayThread playThread = null;
+	private ControlThread controlThread = null;
 
-	private boolean flag = false; // 是否正在播放
+	public void destroyThread() {
+		this.playThread.stop();
+		this.controlThread.stop();
+	}
+
+	public void controlPlayer(boolean isPause) {
+		this.playThread.isPause = isPause;
+		this.controlThread.isPause = isPause;
+	}
 
 	public NewMP3Player(Player player) {
 

@@ -32,20 +32,25 @@ import musicclient.MusicOperationClient;
 public class MusicSheetDisplayBlock extends JPanel {
 
 	private static final long serialVersionUID = 1L;
-	private String picPath = "/Users/xiaodong/Music/guns and roses/fig-guns and roses.jpg";
-	private final String picBasicUrl = "D:\\desktop\\oucMusicStatic\\musicCover\\";
-	private final String musicBasicUrl = "D:\\desktop\\oucMusicStatic\\musicSource\\";
+	private String picPath = "";
+	private String picBasicUrl;
+	private String musicBasicUrl;
+	private String workPath;
 	private boolean isLocal = false;
+	boolean isMusicDownloaded = false;
 
 	public MusicSheetDisplayBlock(MusicSheet musicSheet, MusicPlayerGUI app) {
 		this.setPreferredSize(new Dimension(550, 200));
 		this.setLayout(new FlowLayout(FlowLayout.LEFT));
+		workPath = System.getProperty("user.dir");
+		musicBasicUrl = workPath + "\\songs\\";
 
 		MusicOperationClient moc = new MusicOperationClient();
 		// 下载封面
 		this.isLocal = app.isLocal;
 		String pic_path = musicSheet.getPicture();
 		if (!isLocal) {
+			picBasicUrl = workPath + "\\covers\\";
 			picPath = picBasicUrl + pic_path;
 			File picFile = new File(picPath);
 			if (!picFile.exists()) {
@@ -78,10 +83,24 @@ public class MusicSheetDisplayBlock extends JPanel {
 		// 播放当前歌单中的全部歌曲
 		playAllMusicButton.addMouseListener(new MouseAdapter() {
 			public void mouseClicked(MouseEvent e) {
-				// TODO 多线程 生产者消费者模式
+				app.curPlaySheet = musicSheet;
+				app.curPlayIndex = 0;
+				app.playMusic();
 			}
 
 		});
+		// 判断当前歌单中的歌曲是否已经下载
+		Object[] keys = musicSheet.getMusicItems().keySet().toArray();
+		if (keys.length > 0) {
+			String musicPath = musicBasicUrl + musicSheet.getMusicItems().get(keys[0]);
+			File musicFile = new File(musicPath);
+			if (musicFile.exists()) {
+				isMusicDownloaded = true;
+			}
+		} else {
+			isMusicDownloaded = true;
+		}
+
 		JButton downloadAllMusicButton = new JButton("下载全部");
 		// 下载当前歌单中的全部歌曲
 		downloadAllMusicButton.addMouseListener(new MouseAdapter() {
@@ -102,10 +121,7 @@ public class MusicSheetDisplayBlock extends JPanel {
 		// 为创建歌单绑定事件
 		MusicDao mDao = new MusicDao();
 		addMusic.addActionListener(new ActionListener() {
-
 			public void actionPerformed(ActionEvent e) {
-//				AddMusicGui addMusic = new AddMusicGui(app);
-//				addMusic.setVisible(true);
 				JFileChooser fileChooser = new JFileChooser();
 				int res = fileChooser.showOpenDialog(app);
 				if (res == JFileChooser.APPROVE_OPTION) {
@@ -113,11 +129,13 @@ public class MusicSheetDisplayBlock extends JPanel {
 					String filePath = selectedFile.getAbsolutePath();
 					int sheetId = app.getLocalSheet().curSheet.getId();
 					String name = filePath.substring(filePath.lastIndexOf("\\") + 1, filePath.indexOf('.'));
+
 					FileInputStream fis;
 					String Md5 = null;
 					try {
 						fis = new FileInputStream(filePath);
 						Md5 = DigestUtils.md5Hex(IOUtils.toByteArray(fis));
+
 					} catch (IOException e1) {
 						e1.printStackTrace();
 					}
@@ -125,6 +143,7 @@ public class MusicSheetDisplayBlock extends JPanel {
 					music.setName(name);
 					music.setSheetId(sheetId);
 					music.setFilePath(filePath);
+
 					music.setMd5(Md5);
 					mDao.insert(music);
 					Map<String, String> mum = musicSheet.getMusicItems();
@@ -137,7 +156,7 @@ public class MusicSheetDisplayBlock extends JPanel {
 		});
 
 		musicSheetButtonPanel.add(playAllMusicButton);
-		if (!this.isLocal)
+		if (!this.isLocal && !this.isMusicDownloaded)
 			musicSheetButtonPanel.add(downloadAllMusicButton);
 		if (this.isLocal)
 			musicSheetButtonPanel.add(addMusic);

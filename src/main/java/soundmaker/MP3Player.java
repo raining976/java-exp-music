@@ -2,44 +2,81 @@ package soundmaker;
 
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.URL;
 
+import gui.MusicPlayerGUI;
+import javazoom.jl.decoder.JavaLayerException;
 import javazoom.jl.player.Player;
 
-public class MP3Player extends Thread {
-	private String filename;
-	private Player player;
+public class MP3Player {
+	private String filePath;
+	private final Object lock = new Object();
+	private boolean isPaused;
+	private Thread playerThread;
+	public String[] playList; // 播放列表
+	public int curIndex;
+	Player player;
+	boolean isRemote = false;
 
-	public MP3Player(String filename) {
-		this.filename = filename;
+	public MP3Player(String[] playList, int curIndex, MusicPlayerGUI app) {
+		isRemote = app.isRemote;
+		this.playList = playList;
+		this.curIndex = curIndex;
+		this.filePath = playList[curIndex];
+
+		isPaused = false;
 	}
 
-	@Override
-	public void run() {
-		try {
-			/*
-			 * 播放来自与网络的流
-			 */
-			// URL mp3url = new URL(filename);
-//			 BufferedInputStream buffer = new BufferedInputStream(mp3url.openStream());
-			/*
-			 * 播放本地硬盘上的文件
-			 */
-			BufferedInputStream buffer = new BufferedInputStream(new FileInputStream(filename));
-
-			player = new Player(buffer);
-			player.play();
-		} catch (Exception e) {
-			System.out.println(e);
+	public void play() {
+		synchronized (lock) {
+			if (playerThread == null || !playerThread.isAlive()) {
+				playerThread = new Thread(new PlayerRunnable());
+				playerThread.start();
+			} else {
+				lock.notifyAll();
+			}
+			isPaused = false;
 		}
 	}
 
-	public static void main(String[] args) {
-		String filename = System.getProperty("user.dir") + "/sound/1234.mp3"; // 本地
-		// filename =
-		// "http://localhost:8080/music.server/music?md5=4768976e9d101954cb65466d16e17f1d";
-		// // 远程
-		MP3Player mp3 = new MP3Player(filename);
+	public void pause() {
+		synchronized (lock) {
+			isPaused = true;
+		}
+	}
 
-		mp3.start();
+	private class PlayerRunnable implements Runnable {
+
+		@Override
+		public void run() {
+			try {
+				BufferedInputStream buffer;
+				if (isRemote) {
+					URL mp3url = new URL(filePath);
+					buffer = new BufferedInputStream(mp3url.openStream());
+				} else {
+					buffer = new BufferedInputStream(new FileInputStream(filePath));
+				}
+
+				player = new Player(buffer);
+
+				while (!Thread.currentThread().isInterrupted()) {
+					synchronized (lock) {
+						while (isPaused) {
+							lock.wait();
+						}
+					}
+
+					if (player.play(1) == false) {
+						break;
+					}
+
+				}
+
+			} catch (IOException | JavaLayerException | InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 }
