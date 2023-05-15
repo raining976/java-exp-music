@@ -18,7 +18,6 @@ import javazoom.jl.player.Player;
 import model.MusicSheet;
 import musicclient.MusicOperationClient;
 import soundmaker.MP3Player;
-import soundmaker.PlayerThread;
 
 public class MusicPlayerGUI extends JFrame {
 
@@ -33,7 +32,6 @@ public class MusicPlayerGUI extends JFrame {
 	int curPlayIndex = -1;
 	Player player = null;
 	boolean isPlaying = false;
-	PlayerThread playerThread = null;
 	MP3Player mp3Player = null;
 	public boolean isRemote = false;
 
