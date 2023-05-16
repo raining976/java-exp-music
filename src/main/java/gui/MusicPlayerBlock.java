@@ -42,7 +42,7 @@ public class MusicPlayerBlock extends JPanel {
 		// 设置歌曲列表数据
 		Object[][] Data = new Object[ms.getMusicItems().size()][3];
 		int i = 0;
-
+		// 检查当前歌单中的歌曲是否已经下载
 		String fileName1 = null;
 		for (Entry<String, String> entry : ms.getMusicItems().entrySet()) {
 			fileName1 = entry.getValue();
@@ -51,7 +51,7 @@ public class MusicPlayerBlock extends JPanel {
 			}
 		}
 		if (new File(workPath + songPath + fileName1).exists()) {
-			isDownloaded = true;
+			isDownloaded = true; // 设置当前歌单已经下载的标识
 		}
 
 		for (String value : ms.getMusicItems().values()) {
@@ -66,7 +66,6 @@ public class MusicPlayerBlock extends JPanel {
 //			} 
 			Data[i][0] = value;
 			Data[i][1] = Data[i][2] = "";
-
 			i++;
 		}
 		this.musicData = Data;
@@ -108,15 +107,15 @@ public class MusicPlayerBlock extends JPanel {
 
 		});
 		playMusicButton = new JButton("播放");
+		// 给播放按钮绑定点击事件
 		playMusicButton.addMouseListener(new MouseAdapter() {
 			public void mouseClicked(MouseEvent e) {
 				if (app.curPlayIndex != -1) {
 					String text = playMusicButton.getText();
+					// 根据当前的button文字进行播放或者暂停的操作
 					if (text == "播放") {
-						// TODO: 播放
 						app.mp3Player.play();
 					} else {
-						// TODO: 暂停
 						app.mp3Player.pause();
 					}
 					playMusicButton.setText(text == "播放" ? "暂停" : "播放");
@@ -126,6 +125,7 @@ public class MusicPlayerBlock extends JPanel {
 
 		});
 		JButton nextMusicButtonButton = new JButton("下一首");
+		// 给下一首按钮添加鼠标点击事件
 		nextMusicButtonButton.addMouseListener(new MouseAdapter() {
 			public void mouseClicked(MouseEvent e) {
 				if (app.curPlayIndex != -1)
@@ -140,12 +140,14 @@ public class MusicPlayerBlock extends JPanel {
 		this.add(musicPlayerPanel);
 	}
 
+	// 设置将播放的button文字设置为暂停
 	public void setPauseText() {
 		playMusicButton.setText("暂停");
 	}
 
+	// 设置 table 的选择焦点
 	public void setTableSelectedRow(int index) {
-		musicTable.clearSelection();
+		musicTable.clearSelection(); // 先清空原有的
 		musicTable.setRowSelectionInterval(index, index);
 
 	}

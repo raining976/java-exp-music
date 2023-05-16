@@ -27,13 +27,13 @@ public class MusicPlayerGUI extends JFrame {
 	private LocalMusicSheetBlock localSheet;
 	private MusicPlayerBlock musicPlayer;
 
-	boolean isLocal = false;
-	MusicSheet curPlaySheet;
-	int curPlayIndex = -1;
+	boolean isLocal = false; // 当前选择的歌单是否为本地歌单
+	MusicSheet curPlaySheet; // 当前播放的歌单
+	int curPlayIndex = -1; // 当前播放的歌曲位于当前播放的歌单中的索引
 	Player player = null;
 	boolean isPlaying = false;
-	MP3Player mp3Player = null;
-	public boolean isRemote = false;
+	MP3Player mp3Player = null; // 播放类的实例
+	public boolean isRemote = false; // 是否为在线播放歌曲
 
 	public MusicPlayerGUI(String title) {
 
@@ -88,17 +88,21 @@ public class MusicPlayerGUI extends JFrame {
 
 	// 刷新歌单展示区
 	public void refreshDisplaySheet(MusicSheet musicSheet) {
+		// 歌单info刷新
 		displaySheet.removeAll();
 		displaySheet.add(new MusicSheetDisplayBlock(musicSheet, this));
 		displaySheet.revalidate();
 
+		// 歌曲列表刷新
 		musicPlayer.removeAll();
+		// 要先新建一个tmp对象以更新原有的对象,否则原有对象不会更新
 		MusicPlayerBlock musicPlayerTmp = new MusicPlayerBlock(musicSheet, this);
 		musicPlayer.add(musicPlayerTmp);
 		musicPlayer.revalidate();
 		musicPlayer = musicPlayerTmp;
 	}
 
+	// 刷新本地歌单的区域
 	public void refreshLocalSheet() {
 		localSheet.removeAll();
 		LocalMusicSheetBlock localSheetTmp = new LocalMusicSheetBlock(this);
@@ -107,10 +111,11 @@ public class MusicPlayerGUI extends JFrame {
 		localSheet = localSheetTmp;
 	}
 
+	// 播放音乐 (从头开始播放)
 	public void playMusic() {
 		isRemote = false;
 		musicPlayer.setTableSelectedRow(curPlayIndex);
-		Object[] keys = this.curPlaySheet.getMusicItems().keySet().toArray();
+		Object[] keys = this.curPlaySheet.getMusicItems().keySet().toArray(); // 获取所有的 md5
 		if (this.isLocal) {
 			String[] playlist = new String[keys.length];
 			MusicDao mDao = new MusicDao();
@@ -165,6 +170,7 @@ public class MusicPlayerGUI extends JFrame {
 		}
 	}
 
+	// 播放当前歌单当前播放的下一首
 	public void playNext() {
 		MP3Player MP3PlayerTmp = this.mp3Player;
 		if (mp3Player != null)
@@ -178,6 +184,7 @@ public class MusicPlayerGUI extends JFrame {
 		mp3Player.play();
 	}
 
+	// 播放当前歌单当前播放的的上一首
 	public void playPre() {
 		MP3Player MP3PlayerTmp = this.mp3Player;
 		if (mp3Player != null) {
