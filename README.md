@@ -29,51 +29,588 @@
 
 ## 软件模块设计与实现
 
-1. MP3Player.java 播放类
+#### MP3Player.java 播放类
 
-   - 存储播放路径的list和当前播放的歌曲路径位于这个list的索引index,以便确定当前播放的歌曲
+1. 主要用到的技术
 
-   - 其中的play()函数会新开一个线程用来运行 实现了接口Runnable的PlayerRunnable的对象
-   - PlayerRunnable中的run函数加载数据流并执行play
-   - 以上通过公用一个lock对象来实现多线程的消费生产者模式
+   - **Synchronized**锁实现播放暂停
+   - 实现了runnable接口以维护player对象
 
-2. MusicDao.java和SheetDao.java 操作本地数据库的两个dao包
+2. 类设计
 
-   - 向歌单/歌曲表中插入新的数据
+   - 方法包括play ()播放和 暂停pause() 
+   - 类为palyerRunnable 
+   - 主要属性有: playlist 当前播放列表,存有音乐的地址(远程或本地都有)
+   - curIndex 标记当前播放的歌曲的索引
+   - isRemote 标记是否为远程播放
+   - isPaused 标记当前状态是否暂停
+   - lock 锁对象
 
-     传入对应的sheet或者music对象,依次读取对应的参数写入sql语句执行即可
+3. 关键代码
 
-   - 根据id删除歌曲或歌单
+   ```Java
+   public void play() {
+   		synchronized (lock) {
+   			if (playerThread == null || !playerThread.isAlive()) {
+   				playerThread = new Thread(new PlayerRunnable()); // 开一个子线程给playerThread维护
+   				playerThread.start();
+   			} else {
+   				lock.notifyAll();
+   			}
+   			isPaused = false; // 更新 isPaused 状态
+   		}
+   	}
+   
+   	public void pause() {
+   		synchronized (lock) {
+   			isPaused = true; // 更新 isPaused 状态
+   		}
+   	}
+   
+   	private class PlayerRunnable implements Runnable {
+   
+   		@Override
+   		public void run() {
+   			try {
+   				BufferedInputStream buffer;
+   				// 判断是否为远程在线播放
+   				if (isRemote) {
+   					URL mp3url = new URL(filePath);
+   					buffer = new BufferedInputStream(mp3url.openStream());
+   				} else {
+   					buffer = new BufferedInputStream(new FileInputStream(filePath));
+   				}
+   
+   				player = new Player(buffer);
+   
+   				// 线程不中断就不会跳出循环
+   				while (!Thread.currentThread().isInterrupted()) {
+   					synchronized (lock) {
+   						while (isPaused) {
+   							lock.wait();
+   						}
+   					}
+   					if (player.play(1) == false) {
+   						break;
+   					}
+   				}
+   
+   			} catch (IOException | JavaLayerException | InterruptedException e) {
+   				e.printStackTrace();
+   			}
+   		}
+   	}
+   ```
 
-     用的delete语句,但这种操作比较危险,一般是通过打一个特殊标识使用update语句实现会比较安全(不会彻底丢失数据)
+   
 
-   - 修改歌单/歌曲
+#### MusicDao.java和SheetDao.java 操作本地数据库的两个dao包
 
-     根据传入的对象的id找到对应表的数据做出修改即可,使用update语句
+1. 包含的技术
 
-   - 列出所有歌单/歌单中的歌曲
+   - 基本sql语句在java中的使用以及传值等
 
-     列出歌单只需要查找歌单表的所有数据循环列出即可
+2. 类结构
 
-     列出歌单中的歌曲只需要根据提供的歌单id查询到歌曲表中的对应歌曲循环列出即可
+   - insert(): 通过insert语句向歌单表或者歌曲表插入数据
+   - delete(): 通过delete语句id删除歌单表中对应的歌单和歌曲表中的对应的歌曲
+   - update(): 通过update语句更新指定歌单信息和歌曲信息
+   - findAll(): 通过select语句 查询表中所有数据
+   - findById(): 通过select语句查询指定id的歌单或歌曲
+   - findBySheetId(): 通过select语句查询指定歌单id的所有歌曲
+   - findByMd5(): 通过select语句查询指定md5的歌曲
 
-   - 根据歌单id或歌曲id查询歌单或歌曲
+3. 关键代码   
 
-   - **根据md5查询歌曲**
+   因为findByMd5是我根据需求新添加的函数,所以就以此为例介绍一下相关方法的用法:    
 
-     根据需要添加的功能,因为需要播放本地歌单,运行时没有保存歌曲对应的地址,所以需要从数据库中查询对应的歌曲以拿到歌源地址
+   ```Java
+   /**
+   	 * @brief 歌曲md5查询歌曲
+   	 * @param md5 欲查询的歌曲的md5
+   	 * @return music 对象
+   	 */
+   	public Music findByMd5(String md5) {
+   		Connection conn = null; // conn 对象 用于连接数据库
+   		PreparedStatement ps = null; // 预编译的SQL语句 执行参数化的更新和查询操作
+   		ResultSet rs = null; // 结果集
+   		Music music = null; // 结果对象
+   		String sql = "SELECT ID, NAME, sheet_id, MD5, file_path FROM music WHERE MD5=?";
+   		try {
+   			conn = SqliteUtil.getConnection();
+   			ps = conn.prepareStatement(sql);
+   			ps.setString(1, md5); // 将md5插入到第一个占位符 ?
+   			rs = ps.executeQuery(); // 执行sql语句
+   			if (rs.next()) { // 若结果集不为空将结果依次赋值给music对象
+   				music = new Music();
+   				music.setId(rs.getInt(1));
+   				music.setName(rs.getString(2));
+   				music.setSheetId(rs.getInt(3));
+   				music.setMd5(rs.getString(4));
+   				music.setFilePath(rs.getString(5));
+   			}
+   		} catch (SQLException e) {
+   			e.printStackTrace();
+   		} finally {
+   			SqliteUtil.close(null, ps, conn);
+   		}
+   		return music;
+   	}
+   ```
 
-3. httlclient 包的几个重要类
+   
 
-   - musicSheetTaker 获取远程共享歌单列表
-   - FileDownload 文件下载类  可以下载歌单封面和歌曲
-   - MusicSheetUploader 将歌单上传到服务器
+#### SqliteUtil工具类
 
-4. **不同gui组件之间的通信问题**
+1. 技术简介
 
-   > gui和一些ajax请求的类都是使用老师封装好的类,写的最多的还是数据的获取以及渲染到gui中和一些事件的绑定
+   - 数据库驱动的安装与导入
+   - 链接数据库的相关方法
+   - 创建表和查询表
 
-   - 我将app 也就是MusicPlayerGUI(以下都称作app)作为通信的媒介,以保证其中的子组件可以调用app中的某些变量或方法以达到通信的目的
+2. 类结构
+
+   - getConnection(): 链接目标数据库并返回一个connection对象
+   - close(): 关闭数据库
+
+3. 关键代码
+
+   ```java
+   	static {
+   		try {
+   			Class.forName("com.mysql.cj.jdbc.Driver"); // 导入驱动
+   		} catch (ClassNotFoundException e) {
+   			e.printStackTrace();
+   		}
+   	}
+   /**
+   	 * 获取数据库连接
+   	 * 
+   	 * @return
+   	 */
+   	public static Connection getConnection() {
+   		Connection conn = null;
+   		try {
+   			conn = DriverManager.getConnection("jdbc:mysql://127.0.0.1/music-player?user=root&password=admin123"); // 链接本地数据库中的 music-player库
+   			System.out.println("Database Opened.");
+   		} catch (SQLException e) {
+   			e.printStackTrace();
+   			System.out.println("Database Connection failed.");
+   		}
+   
+   		return conn;
+   	}
+   
+   	/**
+   	 * 关闭数据库连接
+   	 */
+   	public static void close(ResultSet rs, Statement stmt, Connection conn) {
+   		try {
+   			if (rs != null)
+   				rs.close();
+   			if (stmt != null)
+   				stmt.close();
+   			if (conn != null)
+   				conn.close();
+   		} catch (SQLException e) {
+   			e.printStackTrace();
+   		}
+   		System.out.println("Database Closed.");
+   	}
+   ```
+
+   
+
+#### MusicSheetTaker获取共享歌单类
+
+1. 技术简介
+
+   - httpclient包
+   - hashMap
+   - 基本的流的读入
+
+2. 类结构
+
+   - queryMusicSheets() 请求目标地址的歌单返回 并封装成需要的结构渲染
+   - convertStreamToString(): 将inputStream转换成String返回
+
+3. 关键代码
+
+   ```Java
+   /**
+   	 * 查询所有音乐单
+   	 * 
+   	 * @param url api地址
+   	 * @param port 端口号
+   	 * @return List<MusicSheet> 类型为 MusicSheet的list
+   	 * @throws HttpException
+   	 * @throws IOException
+   	 */
+   	public static List<MusicSheet> queryMusicSheets(String url, int port) throws HttpException, IOException {
+   
+   		HttpClient client = new HttpClient();
+   		client.getHostConfiguration().setHost(url, port);
+   		GetMethod method = new GetMethod(url);
+   		client.executeMethod(method);
+   
+   		// 打印服务器返回的状态
+   		System.out.println(method.getStatusLine());
+   
+   		// 打印返回的信息
+   		InputStream bodystreams = method.getResponseBodyAsStream();
+   		JSONObject jsonBody = new JSONObject(convertStreamToString(bodystreams));
+   		JSONArray jsonMusicSheetList = (JSONArray) jsonBody.get("musicSheetList");
+   
+   		JSONObject jms = null;
+   		List<MusicSheet> mss = new ArrayList<MusicSheet>();
+   		MusicSheet ms = null;
+   		Map<String, String> mum = null;
+   
+           // 循环得到的musicSheetList 依次add到mss数组中
+   		for (Object musicSheetObj : jsonMusicSheetList) {
+   			jms = new JSONObject(musicSheetObj.toString());
+   			ms = new MusicSheet();
+   			ms.setUuid((String) jms.get("uuid"));
+   			ms.setName((String) jms.get("name"));
+   			ms.setCreator((String) jms.get("creator"));
+   			ms.setCreatorId((String) jms.get("creatorId"));
+   			ms.setDateCreated((String) jms.get("dateCreated"));
+   			ms.setPicture((String) jms.get("picture"));
+   			// 做类型转化
+   			JSONObject mumObj = (JSONObject) jms.get("musicItems");
+   			Iterator<String> keys = mumObj.keys();
+   			mum = new HashMap<String, String>();
+   			// 设置key为md5 value为文件名的映射
+   			while (keys.hasNext()) {
+   				String key = keys.next();
+   				mum.put(key, mumObj.getString(key));
+   			}
+   			ms.setMusicItems(mum);
+   			mss.add(ms);
+   		}
+   
+   		// 释放连接
+   		method.releaseConnection();
+   		return mss;
+   	}
+   ```
+
+
+
+#### FileDownloader文件下载类(包括歌单封面和歌曲的下载)
+
+1. 技术简介
+
+   - httpclient包
+   - 数据流的处理
+
+2. 类结构
+
+   - downloadMusicFile(): 下载音乐文件
+   - downloadMusicSheetPicture(): 下载歌单封面
+
+3. 关键代码
+
+   ```java
+   public static void downloadMusicFile(String url, String fileMd5, String targetPath, String fileName) {
+   		HttpClient client = new HttpClient();
+   		GetMethod get = null;
+   		FileOutputStream output = null;
+   		String filename = null;
+   		try {
+   			get = new GetMethod(url + "?md5=" + fileMd5); // 拼接 目标 api地址
+   			int i = client.executeMethod(get);
+   
+   			if (SUCCESS == i) {
+   				if (fileName == null) {
+                       // 通过响应头解析文件名
+   					filename = java.net.URLDecoder
+   							.decode(get.getResponseHeader("Content-Disposition").getValue().substring(21), "UTF-8");
+   					System.out.println("[The file name getting from HTTP HEADER] " + filename);
+   				} else {
+   					filename = fileName;
+   				}
+   
+   				File storeFile = new File(targetPath + "/" + filename);
+   				output = new FileOutputStream(storeFile);
+   				output.write(get.getResponseBody()); // 将文件流流写入目标地址
+   			} else {
+   				System.out.println("DownLoad file failed with error code: " + i);
+   			}
+   		} catch (Exception e) {
+   			e.printStackTrace();
+   		} finally {
+   			try {
+   				if (output != null) {
+   					output.close();
+   				}
+   			} catch (IOException e) {
+   				e.printStackTrace();
+   			}
+   
+   			get.releaseConnection();
+   			client.getHttpConnectionManager().closeIdleConnections(0);
+   		}
+   	}
+   
+   	public static void downloadMusicSheetPicture(String url, String musicSheetUuid, String targetPath) {
+   		HttpClient client = new HttpClient();
+   		GetMethod get = null;
+   		FileOutputStream output = null;
+   		String filename = null;
+   
+   		try {
+   			get = new GetMethod(url + "?uuid=" + musicSheetUuid); // 根据uuid获取歌单封面
+   			int i = client.executeMethod(get);
+   
+   			if (SUCCESS == i) {
+                   // 通过响应头解析文件名字
+   				filename = java.net.URLDecoder
+   						.decode(get.getResponseHeader("Content-Disposition").getValue().substring(21), "UTF-8");
+   				System.out.println("[The file name getting from HTTP HEADER] " + filename);
+   
+   				File storeFile = new File(targetPath + "/" + filename);
+   				output = new FileOutputStream(storeFile);
+   				output.write(get.getResponseBody()); // 写入目标地址
+   			} else {
+   				System.out.println("DownLoad file failed with error code: " + i);
+   			}
+   		} catch (Exception e) {
+   			e.printStackTrace();
+   		} finally {
+   			try {
+   				if (output != null) {
+   					output.close();
+   				}
+   			} catch (IOException e) {
+   				e.printStackTrace();
+   			}
+   
+   			get.releaseConnection();
+   			client.getHttpConnectionManager().closeIdleConnections(0);
+   		}
+   	}
+   ```
+
+   
+
+#### 封装自定义table
+
+1. 重写类
+
+   - 重新封装了JTable防止双击可以编辑
+
+2. 代码
+
+   ```java
+   public class MyTable extends JTable {
+   
+   	private static final long serialVersionUID = 1L;
+   
+   	// 重写JTable类的构造方法
+   	public MyTable(DefaultTableModel tableModel) {// Vector rowData, Vector columnNames
+   		super(tableModel); // 调用父类的构造方法
+   	}
+   
+   	public MyTable(final Object[][] rowData, final Object[] columnNames) {
+   		super(rowData, columnNames);
+   	}
+   
+   	// 重写JTable类的getTableHeader()方法
+   	public JTableHeader getTableHeader() { // 定义表格头
+   		JTableHeader tableHeader = super.getTableHeader(); // 获得表格头对象
+   		tableHeader.setReorderingAllowed(false); // 设置表格列不可重排
+   		DefaultTableCellRenderer hr = (DefaultTableCellRenderer) tableHeader.getDefaultRenderer(); // 获得表格头的单元格对象
+   		hr.setHorizontalAlignment(DefaultTableCellRenderer.CENTER); // 设置列名居中显示
+   		return tableHeader;
+   	}
+   
+   	// 重写JTable类的getDefaultRenderer(Class<?> columnClass)方法
+   	public TableCellRenderer getDefaultRenderer(Class<?> columnClass) { // 定义单元格
+   		DefaultTableCellRenderer cr = (DefaultTableCellRenderer) super.getDefaultRenderer(columnClass); // 获得表格的单元格对象
+   		cr.setHorizontalAlignment(DefaultTableCellRenderer.CENTER); // 设置单元格内容居中显示
+   		return cr;
+   	}
+   
+   	// 重写JTable类的isCellEditable(int row, int column)方法
+   	public boolean isCellEditable(int row, int column) { // 表格不可编辑
+   		return false;
+   	}
+   }
+   ```
+
+
+
+#### 添加歌单的gui模态框
+
+1. 技术简介
+
+   - 主要使用了swing的jdialog以及基本的jbutton jlabel 和 jtextfiled 表单
+   - SimpleDateFormat函数用于时间格式化  
+
+2. 类结构
+
+   - 主类继承了 JDialog
+   - 属性有歌曲名的表单域和歌单封面的路径
+   - 主要在init函数里写了dialog的基本布局
+   - 在actionPerformed中写了歌单的创建
+   - 创建时间是自己封装了一个getNowDate的函数 
+
+3. 关键代码
+
+   ```java
+   public void actionPerformed(ActionEvent e) {
+   		String name = String.valueOf(nameField.getText()); // 获取歌单名的表单域中的内容
+   		String pic_path = String.valueOf(picField.getText()); // 获取歌单封面的路径
+   		String creator = "Raining"; // 定义 creator 为 Raining (因为跟我名字谐音哈哈哈)
+   		String dateCreated = getNowDate(); // 获取当前时间 格式为 yyyy-MM-dd
+   		newSheet = new Sheet(); // 创建sheet对象以插入数据库
+   		newSheet.setName(name);
+   		newSheet.setCreator(creator);
+   		newSheet.setDateCreated(dateCreated);
+   		newSheet.setPicPath(pic_path);
+   		SheetDao sheetDao = new SheetDao();
+   		if (name.length() != 0 && pic_path.length() != 0) {
+   			sheetDao.insert(newSheet); // 调用sheetDao包中的insert函数
+   			app.refreshLocalSheet(); // 调用主gui组件中封装的刷新视图的函数
+   		}
+   		this.setVisible(false); // 关闭当前dialog
+   
+   	}
+   ```
+
+   
+
+#### **不同gui组件之间的通信问题**
+
+> gui和一些ajax请求的类都是使用老师封装好的类,写的最多的还是数据的获取以及渲染到gui中和一些事件的绑定
+
+- 我将app 也就是MusicPlayerGUI(以下都称作app)作为通信的媒介,以保证其中的子组件可以调用app中的某些变量或方法以达到通信的目的
+
+- 其中app中方便通信的函数
+
+  - refreshDisplaySheet() 刷新歌单展示区
+  - refreshLocalSheet() 刷新本地歌单
+  - playMusic(): 从头开始播放的函数
+  - playNext(): 播放当前歌单的下一首
+  - playPre(): 播放上一首
+
+- 一些关键代码
+
+  ```java
+  // 播放音乐 (从头开始播放)
+  	public void playMusic() {
+  		isRemote = false;
+  		musicPlayer.setTableSelectedRow(curPlayIndex);
+  		Object[] keys = this.curPlaySheet.getMusicItems().keySet().toArray(); // 获取所有的 md5
+          // 判断是否为本地
+  		if (this.isLocal) {
+  			String[] playlist = new String[keys.length];
+  			MusicDao mDao = new MusicDao();
+  			for (int i = 0; i < keys.length; ++i) {
+  				String md5 = keys[i].toString();
+  				Music m = mDao.findByMd5(md5); // 根据md5找到数据库中的歌曲信息
+  				String path = m.getFilePath(); // 将歌曲的地址存入playlist 
+  				playlist[i] = path;
+  			}
+  			if (mp3Player != null) // 如果当前正在播放 暂停
+  				mp3Player.pause();
+              // 新建一个mp3player对象 将地址列表和curIndex传入 并将 this传入以使得其可以调用当前组件的函数
+  			mp3Player = new MP3Player(playlist, curPlayIndex, this);
+  			musicPlayer.setPauseText(); // 设置播放按钮为 "暂停"
+  			mp3Player.play(); // 开始播放
+  
+              // 如果是远程歌曲
+  		} else {
+              // 先获取当前歌曲的具体路径看看是否已经下载
+  			String curMD5 = keys[this.curPlayIndex].toString(); 
+  			String basicPath = System.getProperty("user.dir") + "\\songs\\";
+  			String filepath = basicPath + this.curPlaySheet.getMusicItems().get(curMD5);
+  			File file = new File(filepath);
+  			// 如果已经下载 播放本地 操作与本地歌单类似
+  			if (file.exists()) {
+  				String[] playlist = new String[keys.length];
+  				for (int i = 0; i < keys.length; ++i) {
+  					String md5 = keys[i].toString();
+  					String path = basicPath + this.curPlaySheet.getMusicItems().get(md5);
+  					playlist[i] = path;
+  				}
+  				if (mp3Player != null)
+  					mp3Player.pause();
+  				mp3Player = new MP3Player(playlist, curPlayIndex, this);
+  
+  				musicPlayer.setPauseText();
+  				mp3Player.play();
+  			} else {
+  				// 如果没有下载 播放 线上
+                  // 更新 isRemote 标记
+                  // 也与上述本地类似 除了basicPath
+  				isRemote = true;
+  				String[] playlist = new String[keys.length];
+  				String remoteBasicPath = "http://119.167.221.16:38080/music.server/music?md5=";
+  				for (int i = 0; i < keys.length; ++i) {
+  					String md5 = keys[i].toString();
+  					String path = remoteBasicPath + md5;
+  					playlist[i] = path;
+  				}
+  				if (mp3Player != null)
+  					mp3Player.pause();
+  				mp3Player = new MP3Player(playlist, curPlayIndex, this);
+  
+  				musicPlayer.setPauseText();
+  				mp3Player.play();
+  			}
+  		}
+  	}
+  ```
+
+
+
+#### 为本地歌单添加歌曲
+
+- 主要使用了JFileChooser对象用于选择音乐文件
+
+- 代码
+
+  ```java
+  // 绑定添加歌曲的点击事件
+  addMusic.addActionListener(new ActionListener() {
+  			public void actionPerformed(ActionEvent e) {
+  				JFileChooser fileChooser = new JFileChooser();
+  				int res = fileChooser.showOpenDialog(app); // 传入app以在app下显示dialog
+  				if (res == JFileChooser.APPROVE_OPTION) {
+  					File selectedFile = fileChooser.getSelectedFile();
+  					String filePath = selectedFile.getAbsolutePath(); // 获取文件地址
+  					int sheetId = app.getLocalSheet().curSheet.getId();
+  					String name = filePath.substring(filePath.lastIndexOf("\\") + 1, filePath.indexOf('.')); // 通过'\' 和 '.' 分理出文件名
+  
+  					FileInputStream fis;
+  					String Md5 = null;
+  					try {
+  						fis = new FileInputStream(filePath);
+  						Md5 = DigestUtils.md5Hex(IOUtils.toByteArray(fis)); // 生成歌曲md5
+  
+  					} catch (IOException e1) {
+  						e1.printStackTrace();
+  					}
+  					Music music = new Music();
+  					music.setName(name);
+  					music.setSheetId(sheetId);
+  					music.setFilePath(filePath);
+  
+  					music.setMd5(Md5);
+  					mDao.insert(music); // 向数据库插入新加入的歌曲
+  					Map<String, String> mum = musicSheet.getMusicItems(); // 获取当前歌单的map 将新添加的加入
+  					mum.put(Md5, name);
+  					musicSheet.setMusicItems(mum);
+  					app.refreshDisplaySheet(musicSheet); // 刷新当前组件
+  
+  				}
+  			}
+  		});
+  ```
+
+  
 
 ## 软件运行演示
 
